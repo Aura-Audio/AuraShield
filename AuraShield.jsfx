@@ -1,0 +1,47 @@
+desc: Frequency Shield (Noise-Based Comb Filter)
+// Inspired by the "Tactical Empathy" override script
+
+slider1:3500<2000,5000,10>Center Freq (Hz)
+slider2:0.5<0,0.95,0.01>Resonance (Feedback)
+slider3:0.15<0,1,0.01>Shield Volume
+
+@init
+// Initialize buffer for the comb filter delay
+buf_pos = 0;
+buf_size = srate; // 1 second buffer
+mem_start = 0;
+
+@slider
+// Calculate delay length based on the target frequency
+// Delay time (seconds) = 1 / Frequency
+delay_samples = srate / slider1;
+
+@block
+vol = slider3;
+feedback = slider2;
+
+@sample
+// 1. Generate White Noise
+noise = (rand(2.0) - 1.0);
+
+// 2. Simple Moving Average (The "Shield" Low-Pass from the script)
+// We simulate the convolution by smoothing the noise slightly
+smooth_noise = (noise + last_noise) * 0.5;
+last_noise = noise;
+
+// 3. The Comb Filter Logic
+// We pull the delayed sample from memory
+delayed_sample = mem_start[buf_pos];
+
+// Calculate the new sample (input + feedback)
+comb_out = smooth_noise + (delayed_sample * feedback);
+
+// Store it back in the circular buffer
+mem_start[buf_pos] = comb_out;
+
+// Advance buffer position
+buf_pos += 1;
+buf_pos >= delay_samples ? buf_pos = 0;
+
+// 4. Output with Volume Scaling
+spl0 = spl1 = comb_out * vol;
